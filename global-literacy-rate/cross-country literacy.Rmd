@@ -1,0 +1,17 @@
+---
+title: "Child mortality vs. share of children immunized against diphtheria, pertussis, and tetanus, 2021"
+author: "Quynh (Christina) Vu"
+date: "2024-12-29"
+output: 
+  html_document:
+    theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Data source: [United Nations Inter-agency Group for Child Mortality Estimation (2024)](https://ourworldindata.org/grapher/child-mortality-vs-share-of-children-immunized-against-diphtheria-pertussis-and-tetanus) 
+
+Demographic estimation usually involves using some sort of model process or set of assumptions, no matter
