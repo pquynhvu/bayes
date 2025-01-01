@@ -15,44 +15,21 @@ library(brms)
 library(tidybayes)
 library(rvest)
 library(tidyr)
-```
-
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-literacy_data <- read.csv("https://raw.githubusercontent.com/pquynhvu/bayes/refs/heads/main/global-literacy-rate/cross-country-literacy-rates.csv")
-```
-
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(gtable)
+library(grid)
+library(gridExtra)
 `%nin%` <- negate(`%in%`) # this will later help  
 ```
 
-# Introduction
-
-Being able to read and write opens up the world of education and knowledge. When and why did more people become literate? How can progress continue?
-
-Only consider countries individually and not territory (American Samoa, British Virgin Islands, Turks and Caicos Islands, 	
-Anguilla, Virgin Islands) using latest data available "Bermuda", "Cayman Islands", French Polynesia, Wallis and Futuna
-
-Saint Pierre and Miquelon
-
-Saint Helena
-
-Northern Mariana Islands
-
-Montserrat
-
-Macao
-
-Guam
-
-Gibraltar
-
-Hong Kong 
-
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-literacy_data <- literacy_data %>% rename("country" = "Entity", 
-                                          "ISO_code" = "Code", 
-                                          "year" = "Year", 
-                                          "literacy_rate" = "Literacy.rate") 
+literacy_data <- read.csv("https://raw.githubusercontent.com/pquynhvu/bayes/refs/heads/main/global-literacy-rate/cross-country-literacy-rates.csv") |> 
+                 rename("country" = "Entity", 
+                        "ISO_code" = "Code", 
+                        "year" = "Year", 
+                        "literacy_rate" = "Literacy.rate") |>
+                 group_by(country) |> mutate(n_obs = n()) |> ungroup() |>
+                 mutate(across(where(is.character), ~ na_if(.,""))) |> # replace empty ISO_code w/ NA
+                 filter(!is.na(ISO_code)) # remove "inappropriate" countries
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
@@ -65,74 +42,84 @@ continent <- ISO_page %>% html_nodes("p+ .outlinetable td:nth-child(1)") %>% htm
 ISO_data <- data.frame(ISO_code, region, continent)
 ```
 
+
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-literacy_data <- left_join(literacy_data, ISO_data, by = "ISO_code") %>%
-                 filter(country %nin% c('World', 'Upper middle income', 'Anguilla', "Bermuda", "Cayman Islands",
-                                        'Upper-middle-income countries','Early-demographic dividend', 
-                                        'Western and Central Africa (WB)', 'Sub-Saharan Africa', "Wallis and Futuna",
-                                        'Sub-Saharan Africa (IDA & IBRD)', 'Sub-Saharan Africa (WB)', 
-                                        'Sub-Saharan Africa (excluding high income)', 'Caribbean small states',
-                                        'Central Europe and the Baltics', 'Central Europe and the Baltics (WB)', 
-                                        'East Asia & Pacific', 'East Asia & Pacific (IDA & IBRD)', "Saint Helena",
-                                        'East Asia & Pacific (excluding high income)', 'East Asia and the Pacific (WB)', 
-                                        'Europe & Central Asia', 'Europe & Central Asia (IDA & IBRD)',         
-                                        'Europe & Central Asia (excluding high income)', 'Europe and Central Asia (WB)',
-                                        'Fragile and conflict affected situations', 'Heavily indebted poor countries (HIPC)',
-                                        'IBRD only', 'IDA & IBRD total', 'IDA blend', 'IDA only', 'IDA total', 
-                                        'Late-demographic dividend', 'Latin America & Caribbean', "Democratic Republic of Congo",
-                                        'Latin America & Caribbean (IDA & IBRD)', "American Samoa", 
-                                        'Latin America & Caribbean (excluding high income)', "British Virgin Islands",
-                                        'Latin America and Caribbean (WB)', 'Low income',  'Low-income countries', 
-                                        'Lower middle income', 'Lower-middle-income countries', 'Middle East & North Africa',
-                                        'Middle East & North Africa (IDA & IBRD)', "Arab World (WB)", "Arab World",
-                                        'Middle East & North Africa (excluding high income)', "Saint Pierre and Miquelon",
-                                        'Middle East and North Africa (WB)', 'Middle income', 'North America (WB)', 
-                                        'Other small states', 'Pacific island small states', 'Pre-demographic dividend', 
-                                        'Small states', 'South Asia', 'South Asia (IDA & IBRD)', 'South Asia (WB)', 
-                                        'Southern and Eastern Africa (WB)', 'Least developed countries: UN classification',
-                                        "Turks and Caicos Islands", "Micronesia", "Virgin Islands", "French Polynesia",
-                                        "Northern Mariana Islands", "Montserrat", "Macao", "Guam", "Gibraltar", "Hong Kong")) %>% 
-                 group_by(country) %>%
-                 slice(which.max(year)) %>% 
-                 ungroup()
+literacy_data_cleaned <- left_join(literacy_data, ISO_data, by = "ISO_code") |>
+                         filter(country %nin% c("World", "Saint Helena", "French Polynesia", "Gibraltar",
+                                                "Hong Kong", "Macao", "Anguilla", "American Samoa",
+                                                "Bermuda", "British Virgin Islands", "Montserrat",
+                                                "Turks and Caicos Islands", "Puerto Rico", "Guam",
+                                                "Cayman Islands", "Cook Islands", "Aruba",
+                                                "Northern Mariana Islands", "New Caledonia",
+                                                "Saint Pierre and Miquelon", "Wallis and Futuna")) |> 
+                         mutate(region = ifelse(country == "East Timor", replace_na(region, "South East Asia"), region),
+                                continent = ifelse(country == "East Timor", replace_na(continent, "Asia"), continent),
+                                region = ifelse(country == "Palestine", replace_na(region, "South West Asia"), region),
+                                continent = ifelse(country == "Palestine", replace_na(continent, "Asia"), continent),
+                                region = ifelse(country == "Kosovo", replace_na(region, "South East Europe"), region),
+                                continent = ifelse(country == "Kosovo", replace_na(continent, "Europe"), continent),
+                                region = ifelse(country == "Montenegro", replace_na(region, "South East Europe"), region),
+                                continent = ifelse(country == "Montenegro", replace_na(continent, "Europe"), continent),
+                                region = ifelse(country == "South Sudan", replace_na(region, "Eastern Africa"), region),
+                                continent = ifelse(country == "South Sudan", replace_na(continent, "Africa"), continent),
+                                region = ifelse(country == "Zambia", replace_na(region, "Southern Africa"), region),
+                                continent = ifelse(country == "Zambia", replace_na(continent, "Africa"), continent),
+                                region = ifelse(country == "Romania", replace_na(region, "South East Europe"), region),
+                                continent = ifelse(country == "Romania", replace_na(continent, "Europe"), continent),
+                                region = ifelse(country == "Serbia", replace_na(region, "South East Europe"), region),
+                                continent = ifelse(country == "Serbia", replace_na(continent, "Europe"), continent),
+                                region = ifelse(country == "Democratic Republic of Congo", replace_na(region, "Central Africa"), region),
+                                continent = ifelse(country == "Democratic Republic of Congo", replace_na(continent, "Africa"), continent)) |>
+                        mutate(region = ifelse(region == "West Indies", "Caribbean", as.character(region))) |>
+                        arrange(country)
 ```
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-country_fill <- literacy_data %>% select(country, region, continent) %>% 
-                                  filter(if_any(everything(), is.na)) %>% 
-                                  unique() %>% 
-                                  select(- c(region, continent))
-                                  
-literacy_data <- literacy_data %>% mutate(region = ifelse(country == "East Timor", replace_na(region, "South East Asia"), region),
-                                          continent = ifelse(country == "East Timor", replace_na(continent, "Asia"), continent),
-                                          region = ifelse(country == "Kosovo", replace_na(region, "South East Europe"), region),
-                                          continent = ifelse(country == "Kosovo", replace_na(continent, "Europe"), continent),
-                                          region = ifelse(country == "Montenegro", replace_na(region, "South East Europe"), region),
-                                          continent = ifelse(country == "Montenegro", replace_na(continent, "Europe"), continent),
-                                          region = ifelse(country == "Palestine", replace_na(region, "South West Asia"), region),
-                                          continent = ifelse(country == "Palestine", replace_na(continent, "Asia"), continent),
-                                          region = ifelse(country == "Romania", replace_na(region, "South East Europe"), region),
-                                          continent = ifelse(country == "Romania", replace_na(continent, "Europe"), continent),
-                                          region = ifelse(country == "Serbia", replace_na(region, "South East Europe"), region),
-                                          continent = ifelse(country == "Serbia", replace_na(continent, "Europe"), continent),
-                                          region = ifelse(country == "South Sudan", replace_na(region, "Eastern Africa"), region),
-                                          continent = ifelse(country == "South Sudan", replace_na(continent, "Africa"), continent),
-                                          region = ifelse(country == "Zambia", replace_na(region, "Southern Africa"), region),
-                                          continent = ifelse(country == "Zambia", replace_na(continent, "Africa"), continent))
+country_fill <- literacy_data_cleaned |> select(country, region, continent) |> 
+                                         filter(if_any(everything(), is.na)) |> 
+                                         unique() |>
+                                         select(- c(region, continent)) 
+```
+
+# Introduction
+
+Being able to read and write opens up the world of education and knowledge. When and why did more people become literate? How can progress continue?
+
+Only consider countries individually and not territory (a, 
+
+British Overseas Territories: Saint Helen, Anguilla, Bermuda, British Virgin Islands, Turks and Caicos Islands, Montserrat, Cayman Islands, Gibraltar
+
+
+US terr:  American Samoa, Puerto Rico, 	Guam, Northern Mariana Islands, 
+
+China special administative: Hong Kong, Macao
+
+New Zealan: Cook Islands
+
+Kingdom of the Netherlands: 	 Aruba
+
+France: French Polynesia, New Caledonia, Saint Pierre and Miquelon, Wallis and Futuna
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+literacy_data_latest <- literacy_data_cleaned |> group_by(ISO_code) |> slice(which.max(year)) |> ungroup() 
 ```
 
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-plot1 <- literacy_data %>% group_by(continent) %>% 
-                           summarise(avg_literacy_rate = mean(literacy_rate)) %>%
-                           ggplot(aes(x=reorder(continent, avg_literacy_rate), y=avg_literacy_rate)) +
-                                  geom_bar(stat = "identity", width=0.5, fill=c("chocolate1", "chartreuse", "blue", "gold3", 
-                                                                                "firebrick1")) +
+plot1 <- literacy_data_latest |> group_by(continent) |>
+                                 summarise(avg_literacy_rate = mean(literacy_rate)) |>
+                                 ggplot(aes(x=reorder(continent, avg_literacy_rate), y=avg_literacy_rate)) +
+                                        geom_bar(stat = "identity", , fill="brown1", width=0.5) +
                                   geom_hline(yintercept = mean(literacy_data$literacy_rate)) +
-                                  annotate("text", x=1.15, y=95, label= "Global average literacy rate") + 
+                                  annotate("text", x=1.1, y=85, label= "Global average literacy rate") + 
                                   labs(title="", subtitle="", x="continents", y="Average literacy rates") +
                                   theme_minimal()
-plot1
+plot2 <- literacy_data_latest |> ggplot(aes(year, literacy_rate)) + 
+                                        geom_line(aes(linetype = continent))
+
+plot2
+
+grid.arrange(plot1, plot2,nrow=2)
 ```
 
 Data source: [United Nations Inter-agency Group for Child Mortality Estimation (2024)](https://ourworldindata.org/literacy) 
